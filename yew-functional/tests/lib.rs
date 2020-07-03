@@ -10,9 +10,47 @@ extern crate yew;
 
 use yew::{html, App, Html, Properties};
 use yew_functional::{
-    use_effect_with_deps, use_reducer_with_init, use_ref, use_state, FunctionComponent,
+    use_effect_with_deps, use_reducer_with_init, use_ref, use_state, use_value, FunctionComponent,
     FunctionProvider,
 };
+
+#[wasm_bindgen_test]
+fn use_value_works() {
+    struct UseValueFunction {}
+    impl FunctionProvider for UseValueFunction {
+        type TProps = ();
+
+        fn run(_props: &Self::TProps) -> Html {
+            let counter = use_value(|| 0);
+
+            let out = format!("{}", *counter.borrow());
+
+            use_effect_with_deps(
+                move |_deps| {
+                    *counter.borrow_mut() += 1;
+                    || {}
+                },
+                (),
+            );
+            return html! {
+                <div>
+                    {"Test Output: "}
+                    <div id="result">{out}</div>
+                    {"\n"}
+                </div>
+            };
+        }
+    }
+
+    type UseValueComponent = FunctionComponent<UseValueFunction>;
+    let app: App<UseValueComponent> = yew::App::new();
+    app.mount_with_props(
+        yew::utils::document().get_element_by_id("output").unwrap(),
+        (),
+    );
+    let result = obtain_result();
+    assert_eq!(result.as_str(), "1");
+}
 
 #[wasm_bindgen_test]
 fn use_state_works() {

@@ -1,5 +1,5 @@
 use std::borrow::Borrow;
-use std::cell::RefCell;
+use std::cell::*;
 use std::ops::DerefMut;
 use std::rc::Rc;
 use yew::html::AnyScope;
@@ -325,6 +325,68 @@ where
         || UseEffectState {
             deps: deps_c,
             destructor: None,
+        },
+    );
+}
+
+pub struct HookedValue<T, F> {
+    value: Rc<RefCell<T>>,
+    trigger: F,
+}
+
+impl<T, F> HookedValue<T, F>
+where
+    F: Fn(),
+{
+    pub fn try_borrow_mut(&self) -> Result<std::cell::RefMut<T>, std::cell::BorrowMutError> {
+        let ret = self.value.try_borrow_mut();
+        if ret.is_ok() {
+            (self.trigger)();
+        }
+        ret
+    }
+
+    pub fn try_borrow(&self) -> Result<std::cell::Ref<T>, std::cell::BorrowError> {
+        self.value.try_borrow()
+    }
+
+    pub fn borrow_mut(&self) -> RefMut<T> {
+        (self.trigger)();
+        self.value.borrow_mut()
+    }
+
+    pub fn borrow(&self) -> std::cell::Ref<T> {
+        RefCell::borrow(&self.value)
+    }
+
+    pub fn setter(self: &Rc<Self>) -> impl Fn(T) {
+        let self_copy = self.clone();
+        move |new_value| {
+            *self_copy.borrow_mut() = new_value;
+        }
+    }
+}
+
+pub fn use_value<T, ValueProvider>(
+    initial_value_provider: ValueProvider,
+) -> HookedValue<T, impl Fn()>
+where
+    ValueProvider: FnOnce() -> T,
+    T: 'static,
+{
+    struct UseValueState<T> {
+        value: Rc<RefCell<T>>,
+    }
+    impl<T> Hook for UseValueState<T> {}
+    return use_hook(
+        |hook_state: &mut UseValueState<T>, updater| {
+            return HookedValue {
+                value: hook_state.value.clone(),
+                trigger: move || updater(|_| true, false),
+            };
+        },
+        || UseValueState {
+            value: Rc::new(RefCell::new(initial_value_provider())),
         },
     );
 }
